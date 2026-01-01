@@ -71,7 +71,7 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
     st.markdown("---")
-    st.caption("Taustakuva: R.W. Ekman, Laukkuryssä.")
+    st.caption("(c) SUKU -lehti 2026")
 
 # --- 6. PÄÄOTSIKKO ---
 col1, col2 = st.columns([1, 4])
@@ -161,3 +161,4 @@ if prompt:
                         st.error("Virhe: Tekoälymallia ei saatu käyttöön.")
                 except Exception as e:
                     st.error("Hetkellinen häiriö. Kokeile uudelleen.")
+
