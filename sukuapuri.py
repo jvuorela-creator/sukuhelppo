@@ -8,51 +8,38 @@ st.set_page_config(
     layout="centered"
 )
 
+# --- OHJEISTUS TEKOÄLYLLE (Tämä on se kohta, jossa virhe oli) ---
+# Määritellään ohjeistus tässä alussa, jotta koodi pysyy siistinä.
+SYSTEM_PROMPT = """
+Olet kokenut, ystävällinen ja perusteellinen suomalainen sukututkija ja historian opettaja.
+
+Tehtäväsi on auttaa käyttäjää sukututkimukseen liittyvissä kysymyksissä.
+- Tunnet suomalaiset lähteet: Kirkonkirjat (rippikirjat, syntyneet, jne.), henkikirjat, tuomiokirjat.
+- Tunnet palvelut: HisKi, Kansallisarkiston Astia, SSHY:n kuvatietokanta, Finna.
+- Osaat selittää vanhoja termejä, ammatteja ja sairauksia (esim. "itsellinen", "ruotuvaivainen", "punatauti").
+- Vastaa selkeällä suomen kielellä. Jos kysymys on monitulkintainen, tarjoa vaihtoehtoja.
+- Käytä vastauksissa tarvittaessa luetteloita ja selkeitä kappaleita.
+"""
+
 # --- CSS-TYYLITTELY (MOSAIIKKI JA VANHA PAPERI) ---
-# Tässä luodaan visuaalinen ilme. Taustalla käytetään sekoitusta 
-# historiallisista kartoista ja teksteistä (url-linkkeinä).
 page_bg_img = """
 <style>
 /* Koko sovelluksen tausta */
 .stApp {
-    /* Käytetään taustakuvana historiallista karttaa/käsikirjoitusta */
     background-image: url("https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Karta_öfver_Helsingfors_med_dess_invid_liggande_trakter_1776_-_Kansallisarkisto.jpg/1280px-Karta_öfver_Helsingfors_med_dess_invid_liggande_trakter_1776_-_Kansallisarkisto.jpg");
     background-size: cover;
     background-attachment: fixed;
     background-blend-mode: overlay;
 }
-
-/* Luodaan "himmennys" taustakuvan päälle, jotta teksti erottuu */
 .stApp::before {
     content: "";
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(255, 250, 240, 0.85); /* Vaalea, kermansävyinen kalvo */
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(255, 250, 240, 0.90); /* Hieman peittävämpi tausta luettavuuden vuoksi */
     z-index: -1;
 }
-
-/* Otsikoiden tyyli */
-h1, h2, h3 {
-    font-family: 'Georgia', serif;
-    color: #4a3b2a;
-    text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
-}
-
-/* Chat-viestien tyyli */
-.stChatMessage {
-    background-color: rgba(255, 255, 255, 0.6);
-    border-radius: 15px;
-    padding: 10px;
-    border: 1px solid #dcd0c0;
-}
-
-/* Käyttäjän viesti */
-div[data-testid="stChatMessageContent"] {
-    font-family: 'Verdana', sans-serif;
-}
+h1, h2, h3 { font-family: 'Georgia', serif; color: #4a3b2a; }
+.stChatMessage { background-color: rgba(255, 255, 255, 0.7); border-radius: 10px; border: 1px solid #dcd0c0; }
 </style>
 """
 st.markdown(page_bg_img, unsafe_allow_html=True)
@@ -65,7 +52,6 @@ else:
     with st.sidebar:
         st.header("⚙️ Asetukset")
         api_key = st.text_input("Syötä Google API-avain:", type="password")
-        st.info("Hanki avain: aistudio.google.com")
 
 # --- 2. KESKUSTELUHISTORIA ---
 if "messages" not in st.session_state:
@@ -73,10 +59,7 @@ if "messages" not in st.session_state:
 
 # --- 3. KÄYTTÖLIITTYMÄ ---
 st.title("🕯️ Virtuaalinen Sukututkija")
-st.markdown("""
-*Tervetuloa. Olen ohjelmoitu tuntemaan suomalaiset arkistot, kirkonkirjat ja historian käänteet. 
-Kysy minulta mitä vain sukututkimukseen liittyvää.*
-""")
+st.markdown("Kysy minulta vanhoista termeistä, lähteistä tai tutkimusongelmista.")
 
 # Näytetään vanhat viestit
 for message in st.session_state.messages:
@@ -87,15 +70,14 @@ for message in st.session_state.messages:
 if api_key:
     genai.configure(api_key=api_key)
     
-    # Valitaan malli (käytetään uusinta Flashia, tai Prota jos Flash ei toimi)
-    # Tässä on varmistus, joka valitsee automaattisesti toimivan.
+    # Valitaan malli automaattisesti
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
     except:
         model = genai.GenerativeModel('gemini-pro')
 
     # Chat-input
-    if prompt := st.chat_input("Esim. 'Mitä tarkoittaa itsellinen?' tai 'Miten löydän Karjalan evakot?'"):
+    if prompt := st.chat_input("Kirjoita kysymyksesi tähän..."):
         
         # 1. Lisätään käyttäjän viesti historiaan
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -106,9 +88,27 @@ if api_key:
         with st.chat_message("assistant"):
             with st.spinner("Tutkitaan arkistoja..."):
                 try:
-                    # Rakennetaan konteksti (System Prompt)
-                    system_instruction = """
-                    Olet kokenut, ystävällinen ja perusteellinen suomalainen sukututkija ja historian opettaja.
+                    # Aloitetaan uusi chat-sessio (ilman historiaa tässä kohtaa, jotta SYSTEM_PROMPT menee perille)
+                    # Huom: Oikeassa keskustelussa historiaa pitäisi hallita tarkemmin, 
+                    # mutta tässä versiossa yksinkertaistamme lähettämällä ohjeen joka kerta.
                     
-                    Tehtäväsi on auttaa käyttäjää sukututkimukseen liittyvissä kysymyksissä.
-                    - Tunnet suomalaiset lähteet: Kirkonkirjat (rippikirjat, syntyneet, jne.), hen
+                    full_prompt = f"{SYSTEM_PROMPT}\n\nKäyttäjän kysymys: {prompt}"
+                    
+                    response = model.generate_content(full_prompt)
+                    
+                    st.markdown(response.text)
+                    
+                    # Tallennetaan vastaus historiaan
+                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                    
+                except Exception as e:
+                    st.error(f"Tapahtui virhe: {e}")
+else:
+    if not api_key:
+        st.warning("Syötä API-avain sivupalkkiin aloittaaksesi.")
+
+# Tyhjennysnappi sivupalkkiin
+with st.sidebar:
+    if st.button("Aloita uusi keskustelu"):
+        st.session_state.messages = []
+        st.rerun()
