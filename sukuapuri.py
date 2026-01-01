@@ -1,38 +1,24 @@
 import streamlit as st
-from openai import OpenAI
-import base64 # Tarvitaan kuvien käsittelyyn
+import google.generativeai as genai
+from PIL import Image # Tarvitaan kuvan avaamiseen
 
 # --- SIVUN ASETUKSET ---
 st.set_page_config(
-    page_title="Sukututkimus-Kuraattori",
+    page_title="Sukututkimus-Kuraattori (Gemini)",
     page_icon="📜",
     layout="centered"
 )
 
-# --- APUFUNKTIO KUVAN KOODAAMISEEN ---
-# OpenAI:n API vaatii kuvan base64-koodattuna merkkijonona.
-def encode_image_to_base64(uploaded_file):
-    if uploaded_file is not None:
-        # Palautetaan tiedoston sisältö base64-muodossa
-        return base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
-    return None
-
-# --- CSS-TYYLITTELY (VISUAALINEN ILME) ---
-# Pidetään sama vanha paperi -teema
+# --- CSS-TYYLITTELY (SAMA KUIN ENNEN) ---
 page_bg_img = """
 <style>
 [data-testid="stAppViewContainer"] {
     background-image: url("https://images.unsplash.com/photo-1585314062340-f1a5a7c9328d?q=80&w=2070&auto=format&fit=crop");
     background-size: cover;
     background-position: center;
-    background-repeat: no-repeat;
     background-attachment: fixed;
 }
-
-[data-testid="stHeader"] {
-    background: rgba(0,0,0,0);
-}
-
+[data-testid="stHeader"] { background: transparent; }
 .main-container {
     background-color: rgba(255, 252, 240, 0.95);
     padding: 30px;
@@ -40,148 +26,117 @@ page_bg_img = """
     border: 1px solid #d4c5a9;
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
-
-h1, h2, h3 {
-    color: #4a3b2a !important;
-    font-family: 'Georgia', serif;
-}
-
-.stTextArea textarea, .stTextInput input {
-    background-color: #fffefb !important;
-    border: 1px solid #bda886 !important;
-}
-
-/* Tyylitellään tiedoston lataaja sopimaan teemaan */
-[data-testid="stFileUploader"] {
-    border: 1px dashed #bda886;
-    padding: 10px;
-    border-radius: 5px;
-    background-color: #fffefb;
-}
+h1, h2, h3 { color: #4a3b2a !important; font-family: 'Georgia', serif; }
+.stTextArea textarea, .stTextInput input { background-color: #fffefb !important; border: 1px solid #bda886 !important; }
 </style>
 """
 st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# --- SIVUPALKKI (ASETUKSET) ---
+# --- SIVUPALKKI ---
 with st.sidebar:
     st.header("⚙️ Asetukset")
-    st.write("Tämä sovellus käyttää tekoälyä (GPT-4o) sukututkimusongelmien ja vanhojen käsialojen ratkaisuun.")
+    st.write("Moottorina toimii Google Gemini 1.5 Flash.")
     
-    # API-avaimen syöttö turvallisesti
-    # HUOM: Käsialan tunnistus vaatii maksullisen GPT-4o mallin käyttöä.
-    api_key = st.text_input("Syötä OpenAI API-avain:", type="password")
-    st.info("Hanki avain: platform.openai.com. Varmista että tililläsi on saldoa.")
+    # API-avaimen syöttö
+    api_key = st.text_input("Syötä Google Gemini API-avain:", type="password")
+    st.info("Hanki ilmainen avain: aistudio.google.com")
     
     st.markdown("---")
-    st.write("**Vinkki:** Käsialan tunnistuksessa paras tulos tulee terävällä, hyvässä valossa otetulla kuvalla.")
+    st.write("**Vinkki:** Gemini osaa lukea vanhaa käsialaa erittäin nopeasti.")
 
 # --- PÄÄOHJELMA ---
 def main():
     st.markdown('<div class="main-container">', unsafe_allow_html=True)
     
-    st.title("📜 Sukututkimus-Kuraattori & Käsialatulkki")
+    st.title("📜 Sukututkimus-Kuraattori")
+    st.caption("Powered by Google Gemini")
+    
     st.write("""
     **Tervetuloa.** Voit käyttää tätä työkalua kahdella tavalla:
-    1. Kuvaile sanallisesti tutkimusongelma.
-    2. Lataa kuva vanhasta tekstistä, ja tekoäly yrittää lukea sen.
+    1. **Analyysi:** Kuvaile tutkimusongelma sanallisesti.
+    2. **Käsiala:** Lataa kuva vanhasta tekstistä tulkattavaksi.
     """)
     
     st.markdown("---")
 
-    # 1. TEKSTIKENTTÄ ONGELMALLE
-    st.subheader("1. Tutkimusongelman kuvaus")
+    # 1. TEKSTIKENTTÄ
+    st.subheader("1. Ongelman kuvaus tai lisätiedot")
     user_problem_text = st.text_area(
-        "Kirjoita ongelma tai lisätietoja ladatusta kuvasta:", 
+        "Kirjoita tähän:", 
         height=100, 
-        placeholder="Esim. Matti Meikäläinen katoaa vuonna 1875... TAI: Ohessa kuva Turun rippikirjasta, mitä rivillä 5 lukee?"
+        placeholder="Esim. Mitä tässä kuvassa lukee? TAI: Matti Meikäläinen katoaa vuonna 1875..."
     )
 
     # 2. KUVAN LATAUS
-    st.subheader("2. Lataa kuva käsialasta (valinnainen)")
+    st.subheader("2. Lataa kuva (valinnainen)")
     uploaded_image = st.file_uploader("Valitse kuva (JPG, PNG):", type=["jpg", "jpeg", "png"])
     
+    img = None
     if uploaded_image is not None:
-        # Näytetään esikatselu ladatusta kuvasta
-        st.image(uploaded_image, caption="Ladattu kuva", use_column_width=True)
+        # Avataan kuva PIL-kirjastolla, jotta Gemini ymmärtää sen
+        img = Image.open(uploaded_image)
+        st.image(img, caption="Ladattu kuva", use_column_width=True)
 
     st.markdown("---")
 
-    # ANALYSOINTIPAINIKE
+    # TOIMINTOLOKIIKKA
     if st.button("🔍 Analysoi / Tulkitse"):
         if not api_key:
             st.error("⚠️ Syötä ensin API-avain sivupalkkiin.")
             return
 
-        client = OpenAI(api_key=api_key)
-        
-        # --- HAARA 1: KUVAN TULKINTA (Jos kuva on ladattu) ---
-        if uploaded_image is not None:
-            with st.spinner('Tekoäly tutkii käsialaa (tämä voi kestää hetken)...'):
-                try:
-                    # 1. Koodataan kuva base64-muotoon lähetystä varten
-                    base64_image = encode_image_to_base64(uploaded_image)
-
-                    # 2. Määritellään paleografian asiantuntijan rooli
-                    handwriting_system_prompt = """
-                    Olet kokenut paleografi ja vanhojen suomalaisten/ruotsalaisten asiakirjojen asiantuntija (1700-1900 -luvut).
-                    Tehtäväsi on puhtaaksikirjoittaa (transkriboida) kuvassa näkyvä teksti mahdollisimman tarkasti.
-                    
-                    Toimintaohjeet:
-                    - Kirjoita teksti rivi riviltä, kuten se kuvassa on.
-                    - Jos olet epävarma sanasta tai kirjaimesta, merkitse se hakasulkeisiin ja kysymysmerkillä, esim. [Sukunimi?].
-                    - Jos kuvassa on selkeitä sarakkeita (kuten rippikirjassa), yritä säilyttää rakenne.
-                    - Lopuksi anna lyhyt arvio siitä, mikä asiakirjatyyppi on kyseessä ja millä kielellä se todennäköisesti on.
-                    """
-
-                    # 3. Rakennetaan viesti tekoälylle (teksti + kuva)
-                    messages = [
-                        {"role": "system", "content": handwriting_system_prompt},
-                        {"role": "user", "content": [
-                            {"type": "text", "text": f"Ole hyvä ja tulkitse tämä kuva. Käyttäjän lisätiedot: {user_problem_text}"},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                        ]}
-                    ]
-
-                    # 4. Kutsutaan mallia (GPT-4o on välttämätön kuvien kanssa)
-                    response = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=messages,
-                        max_tokens=800 # Rajoitetaan vastauksen pituutta kustannusten hallitsemiseksi
+        try:
+            # Konfiguroidaan Gemini
+            genai.configure(api_key=api_key)
+            
+            # Valitaan malli. 'gemini-1.5-flash' on nopea ja hyvä kuvissa.
+            # Voit käyttää myös 'gemini-1.5-pro', jos haluat syvempää päättelykykyä.
+            
+            with st.spinner('Tekoäly tutkii aineistoa...'):
+                
+                # --- TILANNE A: KUVA MUKANA (Käsialan tulkinta) ---
+                if img:
+                    # Määritellään rooli mallille
+                    model = genai.GenerativeModel(
+                        model_name="gemini-1.5-flash",
+                        system_instruction="""Olet kokenut paleografi ja vanhojen suomalaisten/ruotsalaisten asiakirjojen asiantuntija. 
+                        Tehtäväsi on puhtaaksikirjoittaa kuvassa näkyvä teksti.
+                        1. Kirjoita teksti rivi riviltä.
+                        2. Merkitse epäselvät kohdat [?].
+                        3. Kerro lopuksi lyhyesti, mikä asiakirja on kyseessä (esim. rippikirja)."""
                     )
+                    
+                    # Lähetetään teksti JA kuva listana
+                    prompt_content = ["Tulkitse tämä vanha asiakirja.", img]
+                    if user_problem_text:
+                        prompt_content.append(f"Käyttäjän lisätiedot: {user_problem_text}")
+
+                    response = model.generate_content(prompt_content)
                     
                     st.markdown("### 🖋️ Tulkinta käsialasta:")
-                    st.write(response.choices[0].message.content)
-                    st.success("Huom: Tekoäly voi tehdä virheitä vaikeissa käsialoissa. Tarkista aina tulos alkuperäisestä lähteestä.")
+                    st.write(response.text)
 
-                except Exception as e:
-                    st.error(f"Virhe kuvan käsittelyssä: {e}")
+                # --- TILANNE B: VAIN TEKSTI (Tutkimusongelma) ---
+                else:
+                    if len(user_problem_text) < 5:
+                        st.warning("Kirjoita tarkempi kuvaus ongelmasta.")
+                        return
 
-        # --- HAARA 2: PELKKÄ TEKSTIONGELMA (Jos kuvaa EI ole ladattu) ---
-        elif user_problem_text and len(user_problem_text) > 10:
-            with st.spinner('Tutkitaan virtuaalisia arkistoja ja mietitään ratkaisua...'):
-                try:
-                    # Perus sukututkimus-prompti (sama kuin aiemmin)
-                    genealogy_system_prompt = """
-                    Olet kokenut suomalainen sukututkija ja opettaja. Tehtäväsi on auttaa käyttäjää pääsemään eteenpäin tutkimuksessaan.
-                    Älä keksi faktoja. Ehdota konkreettisia suomalaisia lähdeaineistoja (HisKi, SSHY, Kansallisarkisto, Henkikirjat, Tuomiokirjat) ja loogisia päättelyketjuja.
-                    Vastaa suomeksi, kannustavalla ja asiantuntevalla sävyllä.
-                    """
-
-                    response = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": genealogy_system_prompt},
-                            {"role": "user", "content": user_problem_text}
-                        ]
+                    model = genai.GenerativeModel(
+                        model_name="gemini-1.5-flash",
+                        system_instruction="""Olet kokenut suomalainen sukututkimuksen opettaja.
+                        Tehtäväsi on auttaa käyttäjää löytämään uusia lähteitä.
+                        Älä keksi faktoja. Ehdota lähteitä kuten HisKi, SSHY, Kansallisarkisto, Henkikirjat.
+                        Ole kannustava."""
                     )
                     
-                    st.markdown("### 💡 Ehdotetut tutkimussuunnat:")
-                    st.write(response.choices[0].message.content)
+                    response = model.generate_content(user_problem_text)
                     
-                except Exception as e:
-                    st.error(f"Tapahtui virhe: {e}")
-        else:
-            st.warning("Syötä joko kuvaus ongelmasta tai lataa kuva tulkittavaksi.")
+                    st.markdown("### 💡 Ehdotetut tutkimussuunnat:")
+                    st.write(response.text)
+
+        except Exception as e:
+            st.error(f"Tapahtui virhe: {e}")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
