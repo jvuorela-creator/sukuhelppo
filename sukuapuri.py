@@ -97,8 +97,7 @@ def main():
                 # --- TILANNE A: KUVA MUKANA (Käsialan tulkinta) ---
                 if img:
                     # Määritellään rooli mallille
-                    model = genai.GenerativeModel(
-                        model_name="gemini-1.5-flash",
+                    model = genai.GenerativeModel('gemini-pro'),
                         system_instruction="""Olet kokenut paleografi ja vanhojen suomalaisten/ruotsalaisten asiakirjojen asiantuntija. 
                         Tehtäväsi on puhtaaksikirjoittaa kuvassa näkyvä teksti.
                         1. Kirjoita teksti rivi riviltä.
@@ -142,3 +141,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
