@@ -1,68 +1,114 @@
 import streamlit as st
 import google.generativeai as genai
-from PIL import Image
 
-st.set_page_config(page_title="Sukututkijan Tekstintunnistus", page_icon="📜")
-st.title("📜 Vanhan käsialan tulkitsija")
+# --- SIVUN ASETUKSET ---
+st.set_page_config(
+    page_title="Virtuaalinen Sukututkija",
+    page_icon="🕯️",
+    layout="centered"
+)
 
-# --- 1. API-avain ---
+# --- CSS-TYYLITTELY (MOSAIIKKI JA VANHA PAPERI) ---
+# Tässä luodaan visuaalinen ilme. Taustalla käytetään sekoitusta 
+# historiallisista kartoista ja teksteistä (url-linkkeinä).
+page_bg_img = """
+<style>
+/* Koko sovelluksen tausta */
+.stApp {
+    /* Käytetään taustakuvana historiallista karttaa/käsikirjoitusta */
+    background-image: url("https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Karta_öfver_Helsingfors_med_dess_invid_liggande_trakter_1776_-_Kansallisarkisto.jpg/1280px-Karta_öfver_Helsingfors_med_dess_invid_liggande_trakter_1776_-_Kansallisarkisto.jpg");
+    background-size: cover;
+    background-attachment: fixed;
+    background-blend-mode: overlay;
+}
+
+/* Luodaan "himmennys" taustakuvan päälle, jotta teksti erottuu */
+.stApp::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 250, 240, 0.85); /* Vaalea, kermansävyinen kalvo */
+    z-index: -1;
+}
+
+/* Otsikoiden tyyli */
+h1, h2, h3 {
+    font-family: 'Georgia', serif;
+    color: #4a3b2a;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+}
+
+/* Chat-viestien tyyli */
+.stChatMessage {
+    background-color: rgba(255, 255, 255, 0.6);
+    border-radius: 15px;
+    padding: 10px;
+    border: 1px solid #dcd0c0;
+}
+
+/* Käyttäjän viesti */
+div[data-testid="stChatMessageContent"] {
+    font-family: 'Verdana', sans-serif;
+}
+</style>
+"""
+st.markdown(page_bg_img, unsafe_allow_html=True)
+
+# --- 1. API-AVAIMEN HALLINTA ---
 api_key = None
 if "GOOGLE_API_KEY" in st.secrets:
     api_key = st.secrets["GOOGLE_API_KEY"]
 else:
-    st.sidebar.warning("API-avain puuttuu asetuksista.")
-    api_key = st.sidebar.text_input("Syötä Google API-avain:", type="password")
+    with st.sidebar:
+        st.header("⚙️ Asetukset")
+        api_key = st.text_input("Syötä Google API-avain:", type="password")
+        st.info("Hanki avain: aistudio.google.com")
 
+# --- 2. KESKUSTELUHISTORIA ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# --- 3. KÄYTTÖLIITTYMÄ ---
+st.title("🕯️ Virtuaalinen Sukututkija")
+st.markdown("""
+*Tervetuloa. Olen ohjelmoitu tuntemaan suomalaiset arkistot, kirkonkirjat ja historian käänteet. 
+Kysy minulta mitä vain sukututkimukseen liittyvää.*
+""")
+
+# Näytetään vanhat viestit
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# --- 4. TEKOÄLYN LOGIIKKA ---
 if api_key:
+    genai.configure(api_key=api_key)
+    
+    # Valitaan malli (käytetään uusinta Flashia, tai Prota jos Flash ei toimi)
+    # Tässä on varmistus, joka valitsee automaattisesti toimivan.
     try:
-        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except:
+        model = genai.GenerativeModel('gemini-pro')
+
+    # Chat-input
+    if prompt := st.chat_input("Esim. 'Mitä tarkoittaa itsellinen?' tai 'Miten löydän Karjalan evakot?'"):
         
-        # --- 2. Etsitään toimivat mallit automaattisesti ---
-        # Tämä estää "Model not found" -virheet, koska haemme vain ne, jotka ovat olemassa.
-        available_models = []
-        try:
-            for m in genai.list_models():
-                # Valitaan mallit, jotka tukevat sisällöntuotantoa
-                if 'generateContent' in m.supported_generation_methods:
-                    # Suositaan malleja, jotka ovat "latest" tai "flash"
-                    available_models.append(m.name)
-        except Exception as e:
-            st.error(f"Virhe mallien haussa: {e}")
+        # 1. Lisätään käyttäjän viesti historiaan
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-        # Jos lista on tyhjä, kirjasto on luultavasti liian vanha -> vaatii requirements.txt päivityksen
-        if not available_models:
-            st.error("Ei malleja saatavilla. Varmista, että requirements.txt sisältää: google-generativeai>=0.7.2")
-        else:
-            # Annetaan käyttäjän valita malli listasta
-            # Yritetään valita oletuksena 'gemini-1.5-flash', jos se löytyy
-            default_index = 0
-            for i, name in enumerate(available_models):
-                if "flash" in name:
-                    default_index = i
-                    break
-            
-            selected_model_name = st.selectbox("Valitse tekoälymalli:", available_models, index=default_index)
-            model = genai.GenerativeModel(selected_model_name)
-
-            # --- 3. Kuvan lataus ja käsittely ---
-            uploaded_file = st.file_uploader("Valitse kuva", type=["jpg", "jpeg", "png"])
-
-            if uploaded_file and st.button("🔍 Lue teksti"):
-                image = Image.open(uploaded_file)
-                st.image(image, caption='Tutkittava asiakirja', use_column_width=True)
-                
-                with st.spinner('Tekoäly tutkii käsialaa...'):
-                    try:
-                        prompt = "Litteroi (kirjoita puhtaaksi) kuvassa oleva teksti sana sanalta. Säilytä vanha kieliasu."
-                        response = model.generate_content([prompt, image])
-                        st.markdown("### Tulos:")
-                        st.write(response.text)
-                    except Exception as e:
-                        st.error(f"Virhe lukemisessa: {e}")
-                        if "404" in str(e) or "not found" in str(e):
-                             st.warning("Tämä malli ei ehkä tue kuvia. Kokeile valita listasta toinen malli (esim. joku, jossa lukee 'flash' tai 'vision').")
-
-    except Exception as e:
-        st.error(f"Yhteysvirhe: {e}")
-else:
-    st.info("Syötä API-avain aloittaaksesi.")
+        # 2. Muodostetaan vastaus
+        with st.chat_message("assistant"):
+            with st.spinner("Tutkitaan arkistoja..."):
+                try:
+                    # Rakennetaan konteksti (System Prompt)
+                    system_instruction = """
+                    Olet kokenut, ystävällinen ja perusteellinen suomalainen sukututkija ja historian opettaja.
+                    
+                    Tehtäväsi on auttaa käyttäjää sukututkimukseen liittyvissä kysymyksissä.
+                    - Tunnet suomalaiset lähteet: Kirkonkirjat (rippikirjat, syntyneet, jne.), hen
