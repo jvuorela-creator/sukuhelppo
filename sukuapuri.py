@@ -1,6 +1,8 @@
 import streamlit as st
 import google.generativeai as genai
 import random
+import requests
+from io import BytesIO
 
 # --- SIVUN ASETUKSET ---
 st.set_page_config(
@@ -45,6 +47,38 @@ section[data-testid="stSidebar"] {{
 """
 st.markdown(page_bg_img, unsafe_allow_html=True)
 
+# --- APUFUNKTIO: LATAUS HUJAUKSELLA ---
+def lataa_kuva_turvallisesti(url, kuvateksti):
+    """
+    Hakee kuvan esittämällä olevansa verkkoselain.
+    Tämä kiertää Wikimedian estot.
+    """
+    try:
+        # "User-Agent" kertoo palvelimelle, että olemme selain (Chrome), emmekä robotti.
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(url, headers=headers, timeout=5)
+        
+        if response.status_code == 200:
+            image_bytes = BytesIO(response.content)
+            st.image(image_bytes, caption=kuvateksti, use_column_width=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+        else:
+            st.caption(f"Kuvaa ei voitu ladata ({kuvateksti})")
+            
+    except Exception as e:
+        st.caption(f"Virhe latauksessa: {kuvateksti}")
+
+# --- KUVA-AARTEET ---
+# Lyhennetyt ja varmistetut osoitteet
+kuva_data = [
+    ("https://upload.wikimedia.org/wikipedia/commons/e/ea/Lastukoski_crop.jpg", "Tukkilaisten elämää"),
+    ("https://upload.wikimedia.org/wikipedia/commons/5/5e/Pudasjarvi_church_book.jpg", "Vanha kirkonkirja"),
+    ("https://upload.wikimedia.org/wikipedia/commons/9/98/G._Berndtson_-_Summer_-_Google_Art_Project.jpg", "Kesäpäivä"),
+    ("https://upload.wikimedia.org/wikipedia/commons/c/c5/Savupirtti_Kortteeria.jpg", "Savupirtti"),
+    ("https://upload.wikimedia.org/wikipedia/commons/0/05/Robert_Wilhelm_Ekman_-_Laukkuryssä.jpg", "Laukkuryssä"),
+    ("https://upload.wikimedia.org/wikipedia/commons/3/3a/Juho_Rissanen_-_By_the_Source.jpg", "Lähteellä")
+]
+
 # --- 1. API-AVAIMEN HAKU ---
 api_key = None
 if "GOOGLE_API_KEY" in st.secrets:
@@ -52,32 +86,15 @@ if "GOOGLE_API_KEY" in st.secrets:
 else:
     st.sidebar.error("API-avain puuttuu secrets-tiedostosta.")
 
-# --- 2. SIVUPALKKI (HTML-kuvat) ---
+# --- 2. SIVUPALKKI ---
 with st.sidebar:
     st.title("📜 Arkiston kätköistä")
     st.markdown("---")
     
-    # Määritellään kuvat suoraan HTML-muotoon sopiviksi
-    # Tämä kiertää Streamlitin latausongelmat
-    kuvat = [
-        ("https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Lastukoski_crop.jpg/640px-Lastukoski_crop.jpg", "Tukkilaisten elämää"),
-        ("https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Pudasjarvi_church_book.jpg/640px-Pudasjarvi_church_book.jpg", "Vanha kirkonkirja"),
-        ("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Savupirtti_Kortteeria.jpg/640px-Savupirtti_Kortteeria.jpg", "Savupirtti"),
-        ("https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Albert_Edelfelt_-_Women_of_Ruokolahti_on_the_Church_Hill_-_Google_Art_Project.jpg/640px-Albert_Edelfelt_-_Women_of_Ruokolahti_on_the_Church_Hill_-_Google_Art_Project.jpg", "Ruokolahden eukkoja"),
-        ("https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Juho_Rissanen_-_By_the_Source.jpg/640px-Juho_Rissanen_-_By_the_Source.jpg", "Lähteellä")
-    ]
-    
-    # Arvotaan ja näytetään HTML-koodilla
-    valinnat = random.sample(kuvat, 2)
-    
+    # Valitaan ja ladataan kuvat turvallisesti
+    valinnat = random.sample(kuva_data, 2)
     for url, teksti in valinnat:
-        html_code = f"""
-        <div style="margin-bottom: 20px; text-align: center;">
-            <img src="{url}" style="width: 100%; border-radius: 5px; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);">
-            <p style="font-size: 0.9em; font-style: italic; color: #555; margin-top: 5px;">{teksti}</p>
-        </div>
-        """
-        st.markdown(html_code, unsafe_allow_html=True)
+        lataa_kuva_turvallisesti(url, teksti)
 
     st.markdown("---")
     if st.button("🔄 Tyhjennä keskustelu"):
@@ -87,8 +104,7 @@ with st.sidebar:
 # --- 3. PÄÄNÄKYMÄ ---
 col1, col2 = st.columns([1, 4])
 with col1:
-    # Ikoni myös HTML:nä varmuuden vuoksi
-    st.markdown('<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Quill_pen_icon.svg/200px-Quill_pen_icon.svg.png" width="80">', unsafe_allow_html=True)
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Quill_pen_icon.svg/200px-Quill_pen_icon.svg.png", width=80)
 with col2:
     st.title("Virtuaalinen Sukututkija")
 
