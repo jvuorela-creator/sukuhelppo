@@ -21,7 +21,7 @@ Tehtäväsi on auttaa käyttäjää sukututkimukseen liittyvissä kysymyksissä.
 
 # --- CSS-TYYLITTELY ---
 # Taustakuva (pidetty yhtenäisenä merkkijonona virheiden välttämiseksi)
-bg_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Karta_öfver_Helsingfors_med_dess_invid_liggande_trakter_1776_-_Kansallisarkisto.jpg/1280px-Karta_öfver_Helsingfors_med_dess_invid_liggande_trakter_1776_-_Kansallisarkisto.jpg"
+bg_url = "https://photos.app.goo.gl/cftvvJSzZrwX5jny6"
 
 page_bg_img = f"""
 <style>
@@ -51,13 +51,13 @@ st.markdown(page_bg_img, unsafe_allow_html=True)
 BASE = "https://upload.wikimedia.org/wikipedia/commons"
 
 kuva_data = [
-    ("/e/ea/Lastukoski_crop.jpg", "Tukkilaisten elämää (K. Into Inha)"),
-    ("/5/5e/Pudasjarvi_church_book.jpg", "Vanha kirkonkirja"),
-    ("/9/98/G._Berndtson_-_Summer_-_Google_Art_Project.jpg", "Kesäpäivä (G. Berndtson)"),
-    ("/c/c5/Savupirtti_Kortteeria.jpg", "Savupirtti ja perhe"),
-    ("/0/05/Robert_Wilhelm_Ekman_-_Laukkuryssä.jpg", "Laukkuryssä (R.W. Ekman)"),
-    ("/b/b3/Albert_Edelfelt_-_Women_of_Ruokolahti_on_the_Church_Hill_-_Google_Art_Project.jpg", "Ruokolahden eukkoja"),
-    ("/3/3a/Juho_Rissanen_-_By_the_Source.jpg", "Lähteellä (Juho Rissanen)")
+    ("https://photos.app.goo.gl/FQ5rxzXkvsXGeCGEA"),
+    ("https://photos.app.goo.gl/HxNXkxf7XbXMzNuz9"),
+    ("https://photos.app.goo.gl/jLjWyN6GKNvE5qpF6"),
+    ("https://photos.app.goo.gl/nRtXVsFF4pmDAD1L6"),
+    ("https://photos.app.goo.gl/EfY9zKKmby3TdBQr7"),
+    ("https://photos.app.goo.gl/TmCAcKfMeeWWGJgU6"),
+    ("https://photos.app.goo.gl/ZavRwPw1CJEHCaCv8")
 ]
 
 # --- 1. API-AVAIMEN HAKU ---
@@ -145,3 +145,4 @@ if prompt := st.chat_input("Kysy esimerkiksi: 'Mitä tarkoittaa itsellinen?'"):
                         st.error("Virhe: Tekoälymallia ei saatu käyttöön.")
                 except Exception as e:
                     st.error("Palvelussa on ruuhkaa. Kokeile hetken kuluttua uudelleen.")
+
