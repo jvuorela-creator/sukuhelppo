@@ -20,8 +20,8 @@ Tehtäväsi on auttaa käyttäjää sukututkimukseen liittyvissä kysymyksissä.
 """
 
 # --- CSS-TYYLITTELY ---
-# Taustakuva (pidetty yhtenäisenä merkkijonona virheiden välttämiseksi)
-bg_url = "https://photos.app.goo.gl/cftvvJSzZrwX5jny6"
+# Taustakuva
+bg_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Karta_öfver_Helsingfors_med_dess_invid_liggande_trakter_1776_-_Kansallisarkisto.jpg/1280px-Karta_öfver_Helsingfors_med_dess_invid_liggande_trakter_1776_-_Kansallisarkisto.jpg"
 
 page_bg_img = f"""
 <style>
@@ -45,44 +45,39 @@ section[data-testid="stSidebar"] {{
 """
 st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# --- KUVA-AARTEET (TURVALLINEN MUOTOILU) ---
-# Tässä käytetään "Base URL" -tekniikkaa, jotta rivit pysyvät lyhyinä
-# eikä kopiointi aiheuta virheitä.
-BASE = "https://upload.wikimedia.org/wikipedia/commons"
-
-kuva_data = [
-    ("https://photos.app.goo.gl/FQ5rxzXkvsXGeCGEA"),
-    ("https://photos.app.goo.gl/HxNXkxf7XbXMzNuz9"),
-    ("https://photos.app.goo.gl/jLjWyN6GKNvE5qpF6"),
-    ("https://photos.app.goo.gl/nRtXVsFF4pmDAD1L6"),
-    ("https://photos.app.goo.gl/EfY9zKKmby3TdBQr7"),
-    ("https://photos.app.goo.gl/TmCAcKfMeeWWGJgU6"),
-    ("https://photos.app.goo.gl/ZavRwPw1CJEHCaCv8")
-]
-
 # --- 1. API-AVAIMEN HAKU ---
 api_key = None
 if "GOOGLE_API_KEY" in st.secrets:
     api_key = st.secrets["GOOGLE_API_KEY"]
 else:
-    # Jos avainta ei ole, näytetään virhe mutta ei kaadeta koko sovellusta heti
-    st.sidebar.error("API-avain puuttuu.")
+    st.sidebar.error("API-avain puuttuu secrets-tiedostosta.")
 
-# --- 2. SIVUPALKKI ---
+# --- 2. SIVUPALKKI (HTML-kuvat) ---
 with st.sidebar:
     st.title("📜 Arkiston kätköistä")
     st.markdown("---")
     
-    # Rakennetaan kuvat turvallisesti
-    try:
-        valinnat = random.sample(kuva_data, 2)
-        for polku, teksti in valinnat:
-            # Yhdistetään alkuosa ja loppuosa tässä
-            koko_url = BASE + polku
-            st.image(koko_url, caption=teksti, use_column_width=True)
-            st.markdown("<br>", unsafe_allow_html=True)
-    except Exception:
-        st.write("Kuvia ei voitu ladata.")
+    # Määritellään kuvat suoraan HTML-muotoon sopiviksi
+    # Tämä kiertää Streamlitin latausongelmat
+    kuvat = [
+        ("https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Lastukoski_crop.jpg/640px-Lastukoski_crop.jpg", "Tukkilaisten elämää"),
+        ("https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Pudasjarvi_church_book.jpg/640px-Pudasjarvi_church_book.jpg", "Vanha kirkonkirja"),
+        ("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Savupirtti_Kortteeria.jpg/640px-Savupirtti_Kortteeria.jpg", "Savupirtti"),
+        ("https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Albert_Edelfelt_-_Women_of_Ruokolahti_on_the_Church_Hill_-_Google_Art_Project.jpg/640px-Albert_Edelfelt_-_Women_of_Ruokolahti_on_the_Church_Hill_-_Google_Art_Project.jpg", "Ruokolahden eukkoja"),
+        ("https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Juho_Rissanen_-_By_the_Source.jpg/640px-Juho_Rissanen_-_By_the_Source.jpg", "Lähteellä")
+    ]
+    
+    # Arvotaan ja näytetään HTML-koodilla
+    valinnat = random.sample(kuvat, 2)
+    
+    for url, teksti in valinnat:
+        html_code = f"""
+        <div style="margin-bottom: 20px; text-align: center;">
+            <img src="{url}" style="width: 100%; border-radius: 5px; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);">
+            <p style="font-size: 0.9em; font-style: italic; color: #555; margin-top: 5px;">{teksti}</p>
+        </div>
+        """
+        st.markdown(html_code, unsafe_allow_html=True)
 
     st.markdown("---")
     if st.button("🔄 Tyhjennä keskustelu"):
@@ -92,9 +87,8 @@ with st.sidebar:
 # --- 3. PÄÄNÄKYMÄ ---
 col1, col2 = st.columns([1, 4])
 with col1:
-    # Lyhyt ikoni-osoite, ei pitäisi katketa
-    icon_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Quill_pen_icon.svg/200px-Quill_pen_icon.svg.png"
-    st.image(icon_url, width=80)
+    # Ikoni myös HTML:nä varmuuden vuoksi
+    st.markdown('<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Quill_pen_icon.svg/200px-Quill_pen_icon.svg.png" width="80">', unsafe_allow_html=True)
 with col2:
     st.title("Virtuaalinen Sukututkija")
 
@@ -145,4 +139,3 @@ if prompt := st.chat_input("Kysy esimerkiksi: 'Mitä tarkoittaa itsellinen?'"):
                         st.error("Virhe: Tekoälymallia ei saatu käyttöön.")
                 except Exception as e:
                     st.error("Palvelussa on ruuhkaa. Kokeile hetken kuluttua uudelleen.")
-
