@@ -9,20 +9,22 @@ st.set_page_config(
 )
 
 # --- 2. TEKOÄLYN OHJEISTUS ---
-SYSTEM_PROMPT = """
-Olet kokenut, ystävällinen ja perusteellinen suomalainen sukututkija ja historian opettaja.
-Tehtäväsi on auttaa käyttäjää sukututkimukseen liittyvissä kysymyksissä.
-- Tunnet suomalaiset lähteet: Kirkonkirjat, henkikirjat, tuomiokirjat.
-- Tunnet palvelut: HisKi, Kansallisarkiston Astia, SSHY, Finna.
-- Osaat selittää vanhoja termejä (esim. "itsellinen", "ruotuvaivainen").
-- Vastaa selkeällä suomen kielellä.
-"""
+# Käytetään sulkuja tekstin jakamiseen usealle riville turvallisesti
+SYSTEM_PROMPT = (
+    "Olet kokenut, ystävällinen ja perusteellinen "
+    "suomalainen sukututkija ja historian opettaja.\n"
+    "Tehtäväsi on auttaa käyttäjää sukututkimukseen liittyvissä kysymyksissä.\n"
+    "- Tunnet suomalaiset lähteet: Kirkonkirjat, henkikirjat, tuomiokirjat.\n"
+    "- Tunnet palvelut: HisKi, Kansallisarkiston Astia, SSHY, Finna.\n"
+    "- Osaat selittää vanhoja termejä (esim. 'itsellinen', 'ruotuvaivainen').\n"
+    "- Vastaa selkeällä suomen kielellä."
+)
 
 # --- 3. TYYLITTELY JA TAUSTAKUVA ---
-# Rakennetaan URL osista, jotta se ei katkea kopioidessa
-url_part1 = "https://upload.wikimedia.org/wikipedia/commons"
-url_part2 = "/0/05/Robert_Wilhelm_Ekman_-_Laukkuryss%C3%A4.jpg"
-bg_url = url_part1 + url_part2
+# Rakennetaan URL paloista virheiden välttämiseksi
+url_root = "https://upload.wikimedia.org/wikipedia/commons"
+url_img = "/0/05/Robert_Wilhelm_Ekman_-_Laukkuryss%C3%A4.jpg"
+bg_url = url_root + url_img
 
 # CSS-tyylit
 css_styles = f"""
@@ -69,16 +71,93 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
     st.markdown("---")
-    st.caption("Taustakuva: Robert Wilhelm Ekman, *Laukkuryssä*.")
+    st.caption("Taustakuva: R.W. Ekman, Laukkuryssä.")
 
 # --- 6. PÄÄOTSIKKO ---
 col1, col2 = st.columns([1, 4])
 with col1:
-    # Ikoni-URL pätkittynä varmuuden vuoksi
-    icon_base = "https://upload.wikimedia.org/wikipedia/commons"
-    icon_path = "/thumb/9/9a/Quill_pen_icon.svg/200px-Quill_pen_icon.svg.png"
-    st.image(icon_base + icon_path, width=80)
+    # Ikoni rakennettu paloista
+    icon_root = "https://upload.wikimedia.org/wikipedia/commons"
+    icon_file = "/thumb/9/9a/Quill_pen_icon.svg/200px-Quill_pen_icon.svg.png"
+    st.image(icon_root + icon_file, width=80)
 with col2:
     st.title("Virtuaalinen Sukututkija")
 
-st.markdown("*Olen tekoä
+# TÄMÄ RIVI AIHEUTTI VIRHEEN AIEMMIN - NYT KORJATTU:
+welcome_text = (
+    "*Olen tekoälyavustajasi. "
+    "Kysy minulta arkistoista, termeistä tai historiasta.*"
+)
+st.markdown(welcome_text)
+
+# --- 7. CHAT-LOGIIKKA ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Näytä vanhat viestit
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Funktio mallin valintaan
+def hae_malli():
+    if not api_key: return None
+    try:
+        genai.configure(api_key=api_key)
+        # Haetaan mallit
+        models = [m.name for m in genai.list_models()]
+        # Suodatetaan
+        capable_models = []
+        for m in models:
+             if 'generateContent' in genai.get_model(m).supported_generation_methods:
+                 capable_models.append(m)
+
+        priority = [
+            "models/gemini-1.5-flash", 
+            "models/gemini-pro", 
+            "models/gemini-1.0-pro"
+        ]
+        
+        for p in priority:
+            if p in capable_models: return genai.GenerativeModel(p)
+            
+        if capable_models: return genai.GenerativeModel(capable_models[0])
+        
+    except:
+        pass
+    return genai.GenerativeModel("gemini-pro")
+
+# Käyttäjän syöte
+prompt = st.chat_input("Kirjoita kysymyksesi tähän...")
+
+if prompt:
+    if not api_key:
+        st.error("API-avain puuttuu.")
+    else:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Tutkitaan lähteitä..."):
+                try:
+                    model = hae_malli()
+                    if model:
+                        # Yhdistetään tekstit turvallisesti
+                        final_prompt = (
+                            SYSTEM_PROMPT + 
+                            "\n\nKäyttäjän kysymys: " + 
+                            prompt
+                        )
+                        
+                        response = model.generate_content(final_prompt)
+                        st.markdown(response.text)
+                        
+                        st.session_state.messages.append({
+                            "role": "assistant", 
+                            "content": response.text
+                        })
+                    else:
+                        st.error("Virhe: Tekoälymallia ei saatu käyttöön.")
+                except Exception as e:
+                    st.error("Hetkellinen häiriö. Kokeile uudelleen.")
